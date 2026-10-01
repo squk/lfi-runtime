@@ -132,7 +132,7 @@
 
     // NOTE: This pop instruction could fault.
     popq %r11
-    andl $0xffffffe0, %r11d
+    movl %r11d, %r11d
     addq %REG_BASE, %r11
     jmpq *%r11
 .endm

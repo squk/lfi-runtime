@@ -103,6 +103,39 @@ main(int argc, char **argv)
         42);
     assert(x == 42);
 
+#if defined(LFI_ARCH_X64)
+    static uint8_t prog_cb_unaligned[] = {
+        // clang-format off
+        0x48, 0x83, 0xec, 0x08, // sub $8, %rsp
+        0x48, 0x89, 0xf8,       // mov %rdi, %rax
+        0x89, 0xf7,             // mov %esi, %edi
+        0x89, 0xc0,             // mov %eax, %eax
+        0x4c, 0x09, 0xf0,       // or %r14, %rax
+        0xff, 0xd0,             // call *%rax (return address at offset 16)
+        0x48, 0x83, 0xc4, 0x08, // add $8, %rsp
+        0x83, 0xc0, 0x01,       // add $1, %eax
+        0x41, 0x5b,             // pop %r11
+        0x41, 0x83, 0xe3, 0xe0, // and $0xffffffe0, %r11d
+        0x4d, 0x09, 0xf3,       // or %r14, %r11
+        0x41, 0xff, 0xe3,       // jmp *%r11
+        // clang-format on
+    };
+
+    lfiptr p_unaligned = lfi_box_mapany_noverify(box, pagesize,
+        LFI_PROT_READ | LFI_PROT_WRITE, LFI_MAP_ANONYMOUS | LFI_MAP_PRIVATE, -1,
+        0);
+    assert(p_unaligned != (lfiptr) -1);
+    lfiptr p_prog_cb_unaligned = lfi_box_copyto(box, p_unaligned,
+        prog_cb_unaligned, sizeof(prog_cb_unaligned));
+    r = lfi_box_mprotect_noverify(box, p_unaligned, pagesize,
+        LFI_PROT_READ | LFI_PROT_EXEC);
+    assert(r == 0);
+
+    x = LFI_INVOKE(box, &ctx, p_prog_cb_unaligned, int, (int (*)(int), int),
+        box_callback, 41);
+    assert(x == 42);
+#endif
+
     if (bench) {
         size_t iters = 100000000;
         long long unsigned start = time_ns();
